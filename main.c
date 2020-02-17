@@ -9,7 +9,7 @@
 
 #define array_length(a)  sizeof(a)/sizeof(a[0])
 
-void Require(bool test, const char *message)
+void kwr_Require(bool test, const char *message)
 {
     if (!test)
     {
@@ -18,7 +18,7 @@ void Require(bool test, const char *message)
     }
 }
 
-#define kwr_Require(test)  Require((test), SOURCE_LINE_STR": Precon failed: "#test)
+#define require(test)  kwr_Require((test), SOURCE_LINE_STR": Precon failed: "#test)
 
 typedef struct Error {
     union {
@@ -48,7 +48,7 @@ typedef struct Game_Driver {
 // report debug info, function name, SDL error & string
 Stat Game_Init(Game_Driver *driver, Error *error)
 {
-    kwr_Require(driver != NULL);
+    require(driver != NULL);
 
     *driver = (Game_Driver){ 0 };
 
@@ -93,7 +93,7 @@ void Maze_BinaryTree(Maze_Grid *grid)
 
         if (num) {
             int choose = rand() % num;
-            Maze_LinkCells(neighbors[choose].dir, cell, neighbors[choose].cell);
+            Maze_LinkCells(cell, neighbors[choose].dir, neighbors[choose].cell);
         }
 
         ++cell;

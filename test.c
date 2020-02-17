@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdarg.h>
+#include <string.h>
 #include "kwrlib.h"
 #include "kwrmaze.h"
 
@@ -27,6 +29,55 @@ void TestForEachGridRow(Maze_Cell *row, void *data)
     int *counter = (int *)data;
     *counter += row[0].row;
 }
+
+
+#define NOOP    ((void)0)
+
+typedef void (*Assert_HandlerFP)(const char *message, va_list args);
+
+void Assert_HandleFailure(const char *message, va_list args)
+{
+    vprintf(message, args);
+    abort();
+}
+
+Assert_HandlerFP Assert_SetHandler(Assert_HandlerFP new_handler)
+{
+    static Assert_HandlerFP handler = Assert_HandleFailure;
+
+    Assert_HandlerFP retval = handler;
+    if (new_handler) handler = new_handler;
+    return retval;
+}
+
+Assert_HandlerFP Assert_GetHandler()
+{
+    return Assert_SetHandler(NULL);
+}
+
+void kwr_AssertFailed(const char *message, ...)
+{
+    Assert_HandlerFP handler = Assert_GetHandler();
+    if (handler) {
+        va_list args;
+        va_start(args, message);
+        handler(message, args);
+        va_end(args);
+    }
+}
+
+#define requires(EXPR)               ((EXPR)? NOOP: kwr_AssertFailed(SOURCE_LINE_STR ": assert: precondition \"" #EXPR "\" failed in function %s()\n", __func__))
+#define requires_f(EXPR, FMT, ...)   ((EXPR)? NOOP: kwr_AssertFailed(SOURCE_LINE_STR ": assert: precondition \"" #EXPR "\" failed in function %s(), " FMT "\n", __func__, __VA_ARGS__))
+
+
+// Mocks for testing failed assertions
+static char TEST_ASSERT_MOCK_STR[100] = "";
+
+void Assert_MockHandler(const char *message, va_list args)
+{
+    vsprintf(TEST_ASSERT_MOCK_STR, message, args);
+}
+
 
 void RunTests(Test_Runner *runner)
 {
@@ -136,11 +187,27 @@ void RunTests(Test_Runner *runner)
         Test_Assert(!grid.rows);
     }
 
+    { // Precondition assertion Tests
+        // Uncomment to test the real handler
+        //requires(false);
+
+        Assert_SetHandler(Assert_MockHandler);
+        int x = 0;
+
+        TEST_ASSERT_MOCK_STR[0] = '\0';
+        requires(x == 0); 
+        Test_Assert(!strlen(TEST_ASSERT_MOCK_STR));
+
+        // On the same line so LINE_STR picks up the correct line number.
+        requires(x == 1);  Test_Assert(!strcmp(TEST_ASSERT_MOCK_STR, "test.c:" LINE_STR ": assert: precondition \"x == 1\" failed in function RunTests()\n"));
+
+        requires_f(x == 3, "x = %d", x);  Test_Assert(!strcmp(TEST_ASSERT_MOCK_STR, "test.c:" LINE_STR ": assert: precondition \"x == 3\" failed in function RunTests(), x = 0\n"));
+    }
 }
 
 int main(int argc, char *argv[])
 {
-    printf("Testing... ");
+    printf("Testing...\n");
 
     Test_Runner runner = { .failure_count = 0, .test_count = 0 };
 

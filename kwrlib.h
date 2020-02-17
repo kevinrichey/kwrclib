@@ -32,6 +32,6 @@ void RunTests(Test_Runner *runner);
 void Test_Assert_f(Test_Runner *runner, bool condition, const char *message);
 
 #define Test_Assert(CONDITION)   \
-do{ Test_Assert_f(runner, (CONDITION), SOURCE_LINE_STR ": Test failed: " STRINGIFY(#CONDITION)); }while(0)
+do{ Test_Assert_f(runner, (CONDITION), SOURCE_LINE_STR ": Test failed: " STRINGIFY(CONDITION)); }while(0)
 
 
