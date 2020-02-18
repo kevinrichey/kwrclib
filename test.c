@@ -33,51 +33,67 @@ void TestForEachGridRow(Maze_Cell *row, void *data)
 
 #define NOOP    ((void)0)
 
-typedef void (*Assert_HandlerFP)(const char *message, va_list args);
+#define X(cat)  [Assert_Category_##cat] = #cat,
+static const char *kwr_ASSERT_CATEGORY_NAMES[Assert_Category_Size] = {
+    KWR_ASSERT_CATEGORY_TABLE 
+};
+#undef X
 
-void Assert_HandleFailure(const char *message, va_list args)
+typedef void (*Assert_HandlerFP)(Error *assertion);
+
+void Assert_HandleFailure(Error *assertion)
 {
-    vprintf(message, args);
+    printf("%s: ASSERT: %s \"%s\" failed in function %s()\n", assertion->debug_info, kwr_ASSERT_CATEGORY_NAMES[assertion->category], assertion->message, assertion->function);
     abort();
 }
 
-Assert_HandlerFP Assert_SetHandler(Assert_HandlerFP new_handler)
-{
-    static Assert_HandlerFP handler = Assert_HandleFailure;
+static Assert_HandlerFP handler[Assert_Category_Size] = { 
+    Assert_HandleFailure,
+    Assert_HandleFailure,
+    Assert_HandleFailure,
+};
 
-    Assert_HandlerFP retval = handler;
-    if (new_handler) handler = new_handler;
-    return retval;
+typedef void (*void_fp)(void);
+
+void_fp swap_fp(void_fp *a, void_fp *b)
+{
+    void_fp t = *a;
+    *a = *b;
+    *b = t;
+    return *a;
 }
 
-Assert_HandlerFP Assert_GetHandler()
+Assert_HandlerFP Assert_SetHandler(Assert_Category category, Assert_HandlerFP new_handler)
 {
-    return Assert_SetHandler(NULL);
+    return (0 < category && category < Assert_Category_End)?
+      (Assert_HandlerFP)swap_fp((void_fp*)&new_handler, (void_fp*)&handler[category]):
+      NULL;
 }
 
-void kwr_AssertFailed(const char *message, ...)
+Assert_HandlerFP Assert_GetHandler(Assert_Category category)
 {
-    Assert_HandlerFP handler = Assert_GetHandler();
+    return (0 < category && category < Assert_Category_End)?  handler[category]:  NULL;
+}
+
+void kwr_AssertFailed(Error *assertion)
+{
+    Assert_HandlerFP handler = Assert_GetHandler(assertion->category);
     if (handler) {
-        va_list args;
-        va_start(args, message);
-        handler(message, args);
-        va_end(args);
+        handler(assertion);
     }
 }
 
-#define requires(EXPR)               ((EXPR)? NOOP: kwr_AssertFailed(SOURCE_LINE_STR ": assert: precondition \"" #EXPR "\" failed in function %s()\n", __func__))
-#define requires_f(EXPR, FMT, ...)   ((EXPR)? NOOP: kwr_AssertFailed(SOURCE_LINE_STR ": assert: precondition \"" #EXPR "\" failed in function %s(), " FMT "\n", __func__, __VA_ARGS__))
+#define requires(EXPR)      ((EXPR)? NOOP: kwr_AssertFailed( &MakeAssertion(Assert_Category_Precondition, #EXPR)
+#define ensures(EXPR)       ((EXPR)? NOOP: kwr_AssertFailed( &MakeAssertion(Assert_Category_Postcondition, #EXPR)
 
 
 // Mocks for testing failed assertions
-static char TEST_ASSERT_MOCK_STR[100] = "";
+static char TEST_ASSERT_MOCK_STR[200] = "";
 
-void Assert_MockHandler(const char *message, va_list args)
+void Assert_MockHandler(Error *assertion)
 {
-    vsprintf(TEST_ASSERT_MOCK_STR, message, args);
+    sprintf(TEST_ASSERT_MOCK_STR, "%s: ASSERT: %s \"%s\" failed in function %s()\n", assertion->debug_info, kwr_ASSERT_CATEGORY_NAMES[assertion->category], assertion->message, assertion->function);
 }
-
 
 void RunTests(Test_Runner *runner)
 {
@@ -191,7 +207,12 @@ void RunTests(Test_Runner *runner)
         // Uncomment to test the real handler
         //requires(false);
 
-        Assert_SetHandler(Assert_MockHandler);
+        Assert_HandlerFP last_pre_handler = Assert_SetHandler(Assert_Category_Precondition, Assert_MockHandler);
+        Assert_HandlerFP last_post_handler = Assert_SetHandler(Assert_Category_Postcondition, Assert_MockHandler);
+
+        Test_Assert(last_pre_handler == Assert_HandleFailure);
+        Test_Assert(last_post_handler == Assert_HandleFailure);
+
         int x = 0;
 
         TEST_ASSERT_MOCK_STR[0] = '\0';
@@ -199,9 +220,11 @@ void RunTests(Test_Runner *runner)
         Test_Assert(!strlen(TEST_ASSERT_MOCK_STR));
 
         // On the same line so LINE_STR picks up the correct line number.
-        requires(x == 1);  Test_Assert(!strcmp(TEST_ASSERT_MOCK_STR, "test.c:" LINE_STR ": assert: precondition \"x == 1\" failed in function RunTests()\n"));
+        requires(x == 1);  Test_Assert(!strcmp(TEST_ASSERT_MOCK_STR, "test.c:" LINE_STR ": ASSERT: Precondition \"x == 1\" failed in function RunTests()\n"));
+        ensures(x == 2);   Test_Assert(!strcmp(TEST_ASSERT_MOCK_STR, "test.c:" LINE_STR ": ASSERT: Postcondition \"x == 2\" failed in function RunTests()\n"));
 
-        requires_f(x == 3, "x = %d", x);  Test_Assert(!strcmp(TEST_ASSERT_MOCK_STR, "test.c:" LINE_STR ": assert: precondition \"x == 3\" failed in function RunTests(), x = 0\n"));
+        Assert_SetHandler(Assert_Category_Precondition, last_pre_handler);
+        Assert_SetHandler(Assert_Category_Postcondition, last_post_handler);
     }
 }
 

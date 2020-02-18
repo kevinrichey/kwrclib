@@ -17,12 +17,42 @@
 
 #define tuple(TYPE, ...)   tuple_n(TYPE, at, __VA_ARGS__)
 
+
+
+#define KWR_ASSERT_CATEGORY_TABLE \
+    X(First) \
+    X(Precondition) \
+    X(Postcondition) 
+
+#define X(cat_enum)  Assert_Category_##cat_enum,
+typedef enum Assert_Category {
+    KWR_ASSERT_CATEGORY_TABLE 
+    Assert_Category_End,
+    Assert_Category_Size = Assert_Category_End,
+} Assert_Category;
+#undef X
+
 typedef enum Stat {
     Stat_OK = 0,
     Stat_ERROR, 
+    Stat_Failure,
     Stat_INIT_FAILED,    // Initialer function failed
     Stat_TestFailed,
 } Stat;
+
+typedef struct Error {
+    union {
+        Stat status;
+        bool is_error;
+    };
+    Assert_Category category;
+    const char* debug_info;
+    const char* function;
+    const char* message;
+} Error;
+
+#define MakeAssertion(CAT, MSG)  ((Error){ .category=CAT, .debug_info=SOURCE_LINE_STR, .message=MSG, .function=__func__ })))
+#define MakeError(STAT, MSG)     ((Error){ .status=(STAT), .debug_info=SOURCE_LINE_STR, .function=__func__, .message=(MSG) })
 
 //----------------------------------------------------------------------
 // Test: unit testing module

@@ -20,18 +20,6 @@ void kwr_Require(bool test, const char *message)
 
 #define require(test)  kwr_Require((test), SOURCE_LINE_STR": Precon failed: "#test)
 
-typedef struct Error {
-    union {
-        Stat status;
-        bool is_error;
-    };
-    const char* debug_info;
-    const char* function;
-    const char* message;
-} Error;
-
-#define MakeError(stat, message)    ((Error){ (stat), SOURCE_LINE_STR, __func__, (message) })
-
 void PrintError(Error error)
 {
     printf("%s: Error in %s(), \"%s\"\n", error.debug_info, error.function, error.message);

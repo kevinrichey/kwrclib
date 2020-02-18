@@ -75,7 +75,7 @@ control statements (if, for, do, while, switch, etc)
 
 ## C Guildelines & Tips
 
-Preproessor Guidelines
+Preprocessor Guidelines
 : - Wrap statement macros in `do{ ... }while(0)`.
 : - Wrap macro parameters in ()
 : - Ensure variables declared within macros have unique names. Eg. use a prefix.
@@ -86,6 +86,10 @@ Typedef Structs
 
 Initialize empty struct objects
 : `struct_type var_name = { 0 };`
+
+Prefer Designated Initializers for structs
+: `struct_type var_name = { .m1 = x, .m2 = y };`
+: If the struct members are rearranged, the designated initializer still works regardless of order.
 
 Goto Guidelines
 : - `goto` is not evil.
