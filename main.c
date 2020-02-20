@@ -9,20 +9,14 @@
 
 #define array_length(a)  sizeof(a)/sizeof(a[0])
 
-void kwr_Require(bool test, const char *message)
-{
-    if (!test)
-    {
-        printf("%s\n", message);
-        abort();
-    }
-}
-
-#define require(test)  kwr_Require((test), SOURCE_LINE_STR": Precon failed: "#test)
-
-void PrintError(Error error)
+void PrintError(Vitals error)
 {
     printf("%s: Error in %s(), \"%s\"\n", error.debug_info, error.function, error.message);
+}
+
+void Vitals_Print(Vitals *vits)
+{
+    printf("%s: %s \"%s\" in function %s()\n", vits->debug_info, Vitals_CategoryName(vits->category), vits->message, vits->function);
 }
 
 typedef struct Game_Driver {
@@ -34,20 +28,20 @@ typedef struct Game_Driver {
 // If any SDL calls fail, 
 // return an error indicator that can be checked easily
 // report debug info, function name, SDL error & string
-Stat Game_Init(Game_Driver *driver, Error *error)
+Stat Game_Init(Game_Driver *driver, Vitals *error)
 {
-    require(driver != NULL);
+    requires(driver != NULL);
 
     *driver = (Game_Driver){ 0 };
 
     int sdl_code = SDL_Init(SDL_INIT_VIDEO);
-    if (sdl_code) return (*error = MakeError(Stat_ERROR, SDL_GetError())).status;
+    if (sdl_code) return (*error = MakeError(Stat_Error, SDL_GetError())).status;
 
     driver->window   = SDL_CreateWindow("Hello World", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 800, SDL_WINDOW_SHOWN);
-    if (!driver->window) return (*error = MakeError(Stat_ERROR, SDL_GetError())).status;
+    if (!driver->window) return (*error = MakeError(Stat_Error, SDL_GetError())).status;
 
     driver->renderer = SDL_CreateRenderer(driver->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!driver->renderer) return (*error = MakeError(Stat_ERROR, SDL_GetError())).status;
+    if (!driver->renderer) return (*error = MakeError(Stat_Error, SDL_GetError())).status;
 
     return Stat_OK;
 }
@@ -90,12 +84,12 @@ void Maze_BinaryTree(Maze_Grid *grid)
 
 int main(int argc, char* argv[])
 {
-    Error err = { Stat_OK };
+    Vitals err = { Stat_OK };
     Game_Driver driver;
 
     if (Stat_OK != Game_Init(&driver, &err)) {
-        PrintError(MakeError(Stat_ERROR, "Failed to initialize game driver"));
-        PrintError(err);
+        Vitals_Print(&MakeError(Stat_Error, "Failed to initialize game driver"));
+        Vitals_Print(&err);
     }
     else {
         Maze_Grid grid = { .num_rows = 10, .num_columns = 10 };

@@ -12,7 +12,7 @@ LDLIBS = -lmingw32 -lSDL2main -lSDL2 -lSDL2_ttf
 
 # Source Files
 
-SOURCE = kwrmaze.c
+SOURCE = kwrmaze.c kwrlib.c
 OBJ = $(SOURCE:.c=.o)
 #LINK.o = $(LINK.cc)
 

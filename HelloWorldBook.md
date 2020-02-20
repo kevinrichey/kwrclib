@@ -137,13 +137,26 @@ Use enum values to name designated array Initializers
 
 ## Instrumentation Types
 
-- [Tracing]
+monitor, measure, audit, scan, recorder, 
+Vital, pulse, breath, beat, heart, health, fitness
+alert, alarm, diagnose
+
+T
+E
+A
+P
+O
+D
+
+Monitoring & measuring performance, diagnosing errors, tracing.
+
+- Code [Tracing]
 - [Debugging]
 - [Error Handling]
 - [Assertions]
 - [Profiling]
-- Event Logging - print/log
 - [Unit Testing]
+- Event Logging - print/log
 
 ## Instrumentation Categories
 
