@@ -6,40 +6,48 @@
 - Isolate test cases
 - Test fixture setup & teardown
 - Test case auto-discovery script
+- Dynamic array
+- Strings
+- Linked list
+- Hash table/associative array
+- Auto release pool / memory tracker
 
 # Coding Style
 
-## Scoping & Namespaces
-
-- Organization
-- Product
-- Library
-- Module
-- Component
-- Object
-
 ## C Naming Conventions
 
-- Variables, parameters, struct/union members:  lower_snake_case
-- Struct & Union tags/typedefs:    Module_StructName, Module_UnionName
-- Functions:   Module_Action(), Struct_Action()
-- Enum tag/typedef:   Module_EnumName
-- Enum members:       Module_EnumName_ValueName
-- Preprocessor symbols: Module_SYMBOL
-- Preprocessor macros:  Module_MACRO()
+Universal Code
+: Types, functions, etc that are commonly used across code.
+: Stand-along and universal functions may use lower_snake_case().
+: Universal functions are not part of a module and used frequently throughout the code.
+
+Modules
+: A collection of types and functions that work together. Usually (not always) in a single translation unit.
+: Modules are named in UpperCamelCase and used as a namespace prefix in the collection of types and functions.
+: Functions in a module are named as ModuleName_FunctionName().
+: Enums in a module are named as ModuleName_EnumName. 
+: Enum members are ModuleName_EnumName_MemberName.
+
+
+- Variables, parameters, struct & union members:  lower_snake_case
+- Structs & Unions:    UpperCamelCase
+- Struct & Union Functions:   UpperCamelCase()
+- Enum tag/typedef:   EnumName
+- Enum members:       EnumName_ValueName
+- Preprocessor symbols: UPPER_SNAKE_CASE
+- Preprocessor macros:  MACRO()
 - Global Constants:   MODULE_CONSTANT_NAME                                               
 
 
-### Common Meanings
+### Common Meanings & Abbreviations
 
-- init:    constructor, initialize object from params.
-- dispose: destructor, dispose of object.
-- make:    create object, init from params, return by value.
-- new:     create object on heap & return pointer.
-- length:  number of elements in a sequence (array, string, list, etc).
-- size:    number of bytes in an object.
-- cap:     max number of elements a sequence may contain.
-
+- Init:    Initialize object to a known state.
+- Make:    Create object, init from params, return by value.
+- New:     Create object on heap, init, return pointer.
+- Dispose: Destructor, dispose of object.
+- Length:  number of elements in a sequence (array, string, list, etc).
+- Size:    number of bytes in an object, as in sizeof().
+- Cap:     max number of elements a sequence may contain.
 
 ### Matching Verb Pairs
 
@@ -59,19 +67,17 @@
 
 ## Preprocessor
 
-Types of preprocessor things
-
 - Symbols without value
-- Constant symbol with a single literal value
-- Short cut symbol evaluates into an expression
+- Constants with a single literal value
+- Shortcut symbol evaluates into an expression
 - Expression macro
 - Statement macro
 
 ## Formatting
 
-indentation
-code blocks & braces
-control statements (if, for, do, while, switch, etc)
+- Indentation: 4 spaces (not tabs).
+- Code blocks & braces
+- Control statements (if, for, do, while, switch, etc)
 
 ## C Guildelines & Tips
 
@@ -81,13 +87,13 @@ Preprocessor Guidelines
 : - Ensure variables declared within macros have unique names. Eg. use a prefix.
 : - Use `_Bool` inside macros so user doesn't need to include stdbool.h.
 
-Typedef Structs
-: `typedef struct NAME { ... } name;`
+Typedef Structs:
+: `typedef struct NAME { ... } NAME;`
 
-Initialize empty struct objects
+Initialize empty struct objects:
 : `struct_type var_name = { 0 };`
 
-Prefer Designated Initializers for structs
+Prefer Designated Initializers for structs and arrays:
 : `struct_type var_name = { .m1 = x, .m2 = y };`
 : If the struct members are rearranged, the designated initializer still works regardless of order.
 
@@ -99,9 +105,10 @@ Goto Guidelines
 : - Prefer using `break` from loops.
 
 Special Enum Members
-: - First: equal to first enum in range (0)
-: - Last:  equal to last enum in range
-: - End:   equal to last + 1
+: - First: equal to first enum in range (usually 0).
+: - Last:  equal to last enum in range.
+: - End:   equal to last + 1.
+: - Count: number of enums, usually equal to End-First, can be used to allocate an array.
 
 Use enum values to name designated array Initializers
 :   `type_name  array_name[] = { [enum_a] = value, [enum_b] = value };`
@@ -113,146 +120,187 @@ Use enum values to name designated array Initializers
 
 # Program Instrumentation
 
-- Condition:  do trace if true
-- Report:     print/log info
-- Handle:     do something (ignore, return code, throw, abort, etc).
+Requirements
 
-## Instrumentation Components
+- Flexible - Configure different handling methods
+- Decoupled
+- Device-independent - output to screen/console, file, UI, network, etc.
 
-- Category enum & strings
-- Category filter & function
-- Category handler
-- Volume Level
-- Volume filter function
-- Debug info macro
-- Printer function
-- Logger function
-- Custom format & variable output
-- Open log file
-- Backtrace stack
-- Breakpoint marker
-- Error state variable
-- Return codes
-- longjmp exceptions
+Detection
+Reporting
+Handling
+
+Extensibility
+
+- custom reporting channels
+- custom handers
+- custom categories
+- custom filters/throttles
 
 ## Instrumentation Types
 
-monitor, measure, audit, scan, recorder, 
-Vital, pulse, breath, beat, heart, health, fitness
-alert, alarm, diagnose
-
-T
-E
-A
-P
-O
-D
-
-Monitoring & measuring performance, diagnosing errors, tracing.
-
-- Code [Tracing]
-- [Debugging]
-- [Error Handling]
-- [Assertions]
+- Unit Testing
+- Tracing - Report code & debugging info to programmer.
+- Debugging
+- Assertions - detect and report logic errors to programmer.
+- Errors - handle run-time errors, inform user and report to programmer.
 - [Profiling]
-- [Unit Testing]
-- Event Logging - print/log
+- [Logging]
+
+## Assertions
+
+Catch and report logic errors
+
+- Detect assertion failure (false condition)
+- Report to console and/or log
+- Abort handler
+- Categories
+  - Precondition (requires)
+  - Postcondition (ensures)
+  - Invariant
+  - Assert
+- Category on/off
+- no level/throttle (always max level)
+
+Interface
+
+- requires(condition, [message], [values...])
+- ensures(condition, [message], [values...])
+- invariant(condition, [message], [values...])
+- assert(condition, [message], [values...])
+
+Requirements
+
+- Calling code source-line, for preconditions
+- Category handlers
+- Function name
+
+
+## Tracing
+
+Report code & debugging info to programmer or admin. 
+
+- Print to console, log to file
+- No handler
+- Volume throttle
+- Category on/off
+- Categories
+    - Debug
+    - Watch
+    - Scope entry/exit
+    - Operation begin/end
+
+Interface
+
+- trace(message, [params...])
+- watch(variables, ...)
+- enter_scope(scope_id)
+- exit_scope(scope_id)
+- begin_operation(op_id)
+- end_operation(op_id)
+
+## Errors
+
+Detect errors, propogate up call stack, report to programmer, inform user.
+
+- Detection (conditional checks)
+- Cancel operation
+- Return error code up call chain to handler
+- Print or log error
+- Inform user
+- Categories
+  - Error (cancel and return)
+  - Failure (unable to complete operation)
+  - Warning (inform user, option to proceed)
+  - Fatal (terminate app)
+  - Out of memory
+  - Item not found
+- Category on/off
+- level throttle
+
 
 ## Instrumentation Categories
 
-- Fatal
-- Error
-- Warning
-- Notice
-- Info
+- Assertion
+    - Precondition
+    - Postcondition
+    - Invariant
+
+- Trace
+    - Debug
+    - Watch
+
+- Profile
+    - Timer
+    - Sample
+    - Count
+
 - Debug
-- Watch
+    - Breakpoint
+
+- Audit
+
+- Error
+    - Fatal
+    - Failure
+    - Warning
+    - Notice
+    - Info
+
 - Startup
 - Shutdown
 - Begin
 - End
 - Progress
-- Timer
 - Input
 - Output
-- Assert
-- Precondition
-- Postcondition
-- Invariant
 - Check
-- Failure
 - Memory
 - Memory usage & tracking
-- Sample
-- Counter
-- Profile
-- Event logging
-- Auditing
 
 ## Volume Level
 
 Each event is given a volume level, which should be based on the frequency of of the event.
 The level is written to the trace/log. A throttle filter turns events on/off.
 
-- 0 = always (can't run it off)
+- 0 = always (can't turn off)
 - max = never run
 
-Functions
-
-- set/get volume level
 
 ## Reporting
 
-- Print to stdout
-- Print to stderr
-- Print to log file
+Format
 
-Details
-
-- Date & time
-- Type/Category
+- Time stamp
+- Status/Category
 - Volume level
-- Debug info (source file, line, function)
-- Message (static const string)
-- Other data
+- Source file
+- Source line
+- Function
+- Message
 
-Message Format
+Output Devices
 
-    $file:$###: $category ($LL) message in $function, $other-data
+- Console
+- File
+- UI
+- Memory
+- Network
 
-Functions
-
-- format event string
-- print event
-- log event
-
-## Handling
+## Handlers
 
 A handler is a user-supplied function that is called in response to the event.
 The general flow works like this:
 
-in-line code (macro) checks the condition and calls master handler function.
-Master handler calls user-supplied handler (or default if user hasn't).
-
-
-- Ignore
-- Print (to console)
-- [Logging] to file
-- Show (in user interface)
-- Cache (in memory backtrace, for output later, requires a storage object)
+- Ignore/do nothing
 - Pause (stop and prompt user)
 - Debug (stop at breakpoint)
 - Terminate
 - Set error state
-- Return error code
+- Return code
 - Raise signal
 - Throw [Exceptions] / (longjmp)
-
-Functions
-
-- Set handler
-- Call master handler
-- Call user handler
+- User message
 
 ## Filters
 
@@ -267,17 +315,21 @@ Functions
 - Cache high volume traces in memory
 - Output all pending traces 
 
-## Logging
 
-Log format
+## Profiling
 
-- Time/date stamp
-- Cateogry
+Measure runtime performance. 
+
+Format
+
+- Clock time, high-res
+- Source file
+- Source line
+- Category
 - Level
-- Message
-- Other Context (function, local vars)
+- Scope (function, begin/end, entry/exit)
 
-File management options
+## Logging
 
 - Path name of log file.
 - Log rotation (time, size, run)
@@ -285,76 +337,12 @@ File management options
 - Archive (zip and move)
 - Cleanup (delete old logs by age, count)
 
-## Tracing
+## Instrumentation Components
 
-- Handle:  cache, ignore
-- Reporting: print, log, silent
+Error status info
+Error status format printer
+Category handler registry
 
-Trace format
-
-- Debug info
-- Category
-- Level
-- Message
-- Other Context (function, local vars)
-
-## Debugging
-
-- Handle: ignore, pause, debug
-
-## Profiling
-
-- Reporting: silent
-- Handling:  ignore, cache
-
-Format
-
-- Source location
-- Clock time (high-res)
-- Category?
-- Level?
-- Context (function, begin/end, entry/exit)
-
-## Assertions
-
-Detect defects, programming bugs, logic errors, broken contracts.
-A condition which must always be true. A false assertion is a logical program error or defect. 
-
-- Condition: boolean expression which should always be true, false is failure.
-- Reporting: print, log, silent
-- Handling:  terminate, ignore, pause, debug
-
-Format
-
-- Debug Info
-- Category
-- Level
-- Message or conditional expression
-- Other data (optional, eg. function, variables)
-
-## Error Handling
-
-An error is an incorrect result or failure. 
-Software errors are frequently broken down into different categories: logic errors, syntax errors, runtime errors.  
-Runtime errors are the result of the programming being unable to complete its task due to unforeseen circumstances beyond its control.
-An organized method of handling errors is fundamental to our programming approach.
-
-- Flexible - Configure different handling methods
-- Extensible - add new handling methods without modifying the library
-- Decoupled
-
-Error Handling Process
-
-- Detection
-- Collect [Error Info]
-- Report to calling code
-- Inform user, give options
-- Trace/log to programmer
-
-- Return Code
-- Error State
-
-# Unit Testing
 
 # Resource Management 
 
@@ -403,6 +391,27 @@ sfile          `char*`    *       Source filename
 sline          `int`      6       Source line number
 func           `char*`    *       Source function name as "function()"
 msg            `char*`    *       Text message
+
+# Data Structures
+
+- Array
+- Linked List
+- Hash Table
+- Associative Array
+- Dynamically Sized Array
+- Any/variant type
+- Memory block manager?
+
+## Associative Array
+
+aka map, dictionary, hash table
+
+Depends on
+
+- Hash function (eg. Murmur3 32 bit)
+- Linked list (for chaining)
+- Dynamic Array (for hash table)
+
 
 # Outline
 

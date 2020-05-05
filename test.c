@@ -3,44 +3,52 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <string.h>
+#include <time.h>
+#include <stddef.h>
+
 #include "kwrlib.h"
 #include "kwrmaze.h"
 
-typedef struct TypeInfo {
-    const char *name;
-} TypeInfo;
-
-typedef struct Base {
-     const TypeInfo *type_info;
-} Base;
-
-#define typeid(obj)    (((Base*)obj)->type_info)
-
-_Bool is_type(void *object, const TypeInfo *type)
-{
-    return object && typeid(object) == type;
-}
-
-
-
-const TypeInfo Test_Runner_TypeId = { .name = "Test_Runner" };
-
 typedef struct Test_Runner {
-    Base  base;
     int   failure_count;
     int   test_count;
 } Test_Runner;
 
-void Vitals_TestFailure(Vitals *vits, void *user_data)
+void TestCase(Test_Runner *runner, bool passes, const char *message)
 {
-    printf("%s: %s \"%s\" failed in function %s()\n", vits->debug_info, Vitals_CategoryName(vits->category), vits->message, vits->function);
-    if (is_type(user_data, &Test_Runner_TypeId)) {
-        Test_Runner *runner = user_data;
+    ++runner->test_count;
+    if (!passes) {
+        printf("%s\n", message);
         ++runner->failure_count;
     }
 }
 
-#define ARRAY(TYPE)  struct { size_t size; TYPE data[]; }
+#define test(EXPR)       TestCase(runner, (EXPR), SOURCE_LINE_STR ": Test \"" STRINGIFY(EXPR) "\" failed.")
+
+
+
+typedef struct TypeInfo {
+    const char * name;
+} TypeInfo;
+
+typedef const TypeInfo *TypeId;
+
+#define TYPE_ID_NAME(type)       type##_TypeId
+#define TYPE_ID_DECL(typename)   extern TypeId TYPE_ID_NAME(typename)
+#define TYPE_ID_DEFN(typename)   TypeId  TYPE_ID_NAME(typename) = &(TypeInfo){ .name = #typename }
+
+TypeId type_of(void *obj_ptr)
+{
+    return obj_ptr? *((TypeId*)(obj_ptr)): NULL;
+}
+
+_Bool is_type(void *object, TypeId type)
+{
+    return object && type_of(object) == type;
+}
+
+
+
 
 
 void TestForEachGridRow(Maze_Cell *row, void *data)
@@ -50,43 +58,303 @@ void TestForEachGridRow(Maze_Cell *row, void *data)
 }
 
 
-// Mocks for testing failed assertions
-static char TEST_VITALS_MOCK_STR[200] = "";
+//  enum     type         id  printf
+#define BASIC_TYPES_X \
+  X(Int,     int,          i, "%d") \
+  X(Long,    long,         l, "%l") \
+  X(Double,  double,       d, "%f") \
+  X(CString, const char*,  s, "%s") \
+  X(Char,    char,         c, "%c") 
 
-void Vitals_MockHandler(Vitals *assertion, void *user_data)
+#define X(ENUM_, ...)  BasicType_##ENUM_,
+typedef enum {
+    BASIC_TYPES_X 
+    BasicType_True,
+    BasicType_False,
+    STANDARD_ENUM_VALUES(BasicType)
+} BasicType;
+#undef X
+
+typedef struct {
+    TypeInfo base_typeinfo;
+    BasicType  basic_type_id;
+    const char *format_spec;
+} BasicTypeInfo;
+
+typedef const BasicTypeInfo * const BasicTypeId;
+
+// Generate TypeId for each basic type
+#define X(NAME_, TYPE_, ID_, FORMAT_)  static BasicTypeInfo NAME_##_TypeId = { \
+    .base_typeinfo.name = #TYPE_, \
+    .basic_type_id = BasicType_##NAME_, \
+    .format_spec = FORMAT_ \
+};
+BASIC_TYPES_X 
+#undef X
+
+// Specialized TypeId for true bools
+static BasicTypeInfo True_TypeId = { \
+    .base_typeinfo.name = "true",
+    .basic_type_id = BasicType_True,
+    .format_spec = "true"
+};
+
+// Specialized TypeId for flase bools
+static BasicTypeInfo False_TypeId = { \
+    .base_typeinfo.name = "false",
+    .basic_type_id = BasicType_False,
+    .format_spec = "false"
+};
+
+
+#define X(_0, TYPE, ID, _1)  TYPE ID;
+typedef struct AnyVar {
+    BasicTypeId typeid;
+    const union { 
+        BASIC_TYPES_X 
+        _Bool b;
+    } value;
+} AnyVar;
+#undef X
+
+const char *Any_GetPrintFormat(AnyVar v)
 {
-    sprintf(TEST_VITALS_MOCK_STR, "%s: ASSERT: %s \"%s\" failed in function %s()\n", assertion->debug_info, Vitals_CategoryName(assertion->category), assertion->message, assertion->function);
+    // require v.type in enum range
+    return v.typeid->format_spec;
 }
+
+void Any_Print(AnyVar v)
+{
+    printf(Any_GetPrintFormat(v), v.value);
+}
+
+#define X(NAME_, TYPE_, MEM_, _0) \
+AnyVar Any_##NAME_(TYPE_ v) { return (AnyVar){  .typeid = &NAME_##_TypeId,  .value. MEM_ = v }; }
+BASIC_TYPES_X 
+#undef X
+
+AnyVar Any_Bool(_Bool v) 
+{
+    return v?
+      (AnyVar){  .typeid = &True_TypeId,   .value.b = v }:
+      (AnyVar){  .typeid = &False_TypeId,  .value.b = v };
+}
+
+#define any(V)  _Generic( (V), \
+            int:          Any_Int, \
+            long:         Any_Long, \
+            double:       Any_Double, \
+            const char*:  Any_CString, \
+            char:         Any_Char, \
+            _Bool:        Any_Bool \
+            ) (V)
+
+typedef struct {
+    FILE *file;
+    int   throttle;
+} TraceConfig;
+
+void trace(TraceConfig *tracer, const char *stamp, const char *category, int level, const char *message)
+{
+    // require trace not null
+    if (level <= tracer->throttle) {
+        fprintf(tracer->file, "%s %s %d \"%s\"\n", stamp, category, level, message);
+    }
+}
+
+void debug(TraceConfig *tracer, int level, const char *sourceline, const char *message)
+{
+    trace(tracer, sourceline, "Debug", level, message);
+}
+
+
+
+#define error(stat_, error_code_, error_msg_)  \
+  (((stat_) = (Status){ .error=(error_code_), .debug_info=SOURCE_LINE_STR, .function=__func__, .message=(error_msg_) }).error)
+
+
+#define TIMESTAMP_STR_LEN 32
+typedef struct { char str[TIMESTAMP_STR_LEN]; } TimeStamp;
+
+ErrorCode GetTimeStamp(TimeStamp *stamp, Status *stat)
+{
+    requires(stamp != NULL);
+
+    time_t now = time(NULL);
+    if (now == (time_t)(-1)) {
+        return error(*stat, ErrorCode_Failure, "GetCurrentTime() returned -1");
+    }
+
+    struct tm *local_tm = localtime(&now);
+    if (!local_tm) {
+        return error(*stat, ErrorCode_Failure, "localtime() returned NULL");
+    }
+
+    size_t strftime_returns = strftime(stamp->str, TIMESTAMP_STR_LEN, "%Y-%m-%d %H:%M:%S", local_tm);
+
+    ensure(strftime_returns > 0);
+    return ErrorCode_OK;
+}
+
+void print_log(TraceConfig *tracer, int level, const char *message)
+{ 
+    Status stat;
+    TimeStamp timestamp = {0};
+    if (GetTimeStamp(&timestamp, &stat) != ErrorCode_OK) {
+        trace(tracer, stat.debug_info, ErrorCode_String(stat.error), 1, stat.message);
+    }
+    trace(tracer, timestamp.str, "Debug", level, message);
+}
+
+
+
+
 
 void RunTests(Test_Runner *runner)
 {
+    UNUSED(runner);
+
     test(true);
     //test(false);
     
-    // tuple macro
-    {
-        tuple(int, x, y, z) point = { 10, 11, 12 };
+    { // TypeId tests
+
+        TYPE_ID_DEFN(TypedFoo);
+
+        typedef struct TypedFoo {
+            TypeId type_info;
+            int x;
+        } TypedFoo;
+
+        typedef struct UntypedFoo {
+            float y;
+        } UntypedFoo;
+
+        TypedFoo   *nfoo = NULL;
+        TypedFoo   tfoo = { .type_info = TypedFoo_TypeId, .x = 1 };
+        UntypedFoo ufoo = { .y = 0.5 };
+
+        test( !type_of(nfoo) );
+        test( type_of(&tfoo) == TypedFoo_TypeId );
+        test( type_of(&tfoo) != type_of(&ufoo) );
+    }
+
+    { // tuple macro
+        vector(int, x, y, z) point = {{ 10, 11, 12 }};
+        test(vec_length(point) == 3);
         test(point.x == 10);
         test(point.y == 11);
         test(point.z == 12);
-        test(point.at[0] == 10);
-        test(point.at[1] == 11);
-        test(point.at[2] == 12);
+        test(point.components[0] == 10);
+        test(point.components[1] == 11);
+        test(point.components[2] == 12);
     }
 
-    // ARRAY macro
-    {
-        int size = 100;
-        ARRAY(int) *a = malloc( sizeof(ARRAY(int)) + (sizeof(int) * size) );
-        a->size = 100;
-        a->data[10] = 100;
-        test(a->size == 100);
-        test(a->data[10] == 100);
+    { // dynarray 
+
+        test(sizeof(dynarray(int)) == sizeof(dynarray(char)));
+        test(offsetof(dynarray(int), top) == offsetof(dynarray(char), top));
+        test(offsetof(dynarray(int), end) == offsetof(dynarray(char), end));
+        test(offsetof(dynarray(int), begin) == offsetof(dynarray(char), begin));
+
+        dynarray(int) *a = new_dynarray(int); 
+
+        test(capacity(a) == 64);
+        test(length(a) == 0);
+        test(remaining(a) == 64);
+        test(is_empty(a));
+        test(!is_full(a));
+
+        int x = 101;
+        int i = push(a, x++); // = x++;
+
+        // these don't compile because the macros are not L-values
+        //capacity(a) = 5;
+        //length(a) = 3;
+        //remaining(a) = 99;
+        //da_set(a, 0, 1000) = 0;
+
+        test(capacity(a) == 64);
+        test(length(a) == 1);
+        test(remaining(a) == 63);
+        test(!is_empty(a));
+        test(!is_full(a));
+        test(da_get(a, 0) == 101);
+        test(i == 101);
+
+        i = da_set(a, 0, 99);
+        test(a->begin[0] == 99);
+        test(i == 99);
+
+        for (int i = 47; i --> 0;)  push(a, x++); // = x++;
+
+        test(length(a) == 48);
+        test(remaining(a) == 16);
+        test(!is_empty(a));
+        test(!is_full(a));
+        test(da_get(a, 1) == 102);
+        test(da_get(a, 47) == 148);
+
+        int *ab = a->begin;
+        test(ab[2] == 103);
+        test(ab[46] == 147);
+
+        while (remaining(a))  push(a, x++); // = x++;
+
+        test(length(a) == 64);
+        test(remaining(a) == 0);
+        test(!is_empty(a));
+        test(is_full(a));
+        ab = a->begin;
+        test(ab[63] == 164);
+
+        void *b = enlarge(a);
+        test(b != NULL);
+        a = b;
+
+        test(capacity(a) == 128);
+        test(length(a) == 64);
+        test(remaining(a) == 64);
+        test(!is_empty(a));
+        test(!is_full(a));
+        
+        test(da_get(a, 1) == 102);
+        test(da_get(a, 40) == 141);
+        test(da_get(a, 63) == 164);
+
+        // Should assert
+        //int y = da_get(a, 129);
+        
+        a = enlarge(a, 44);
+        test(capacity(a) == 128+44);
+
         free(a);
     }
 
-    // Maze Cells
-    {
+    { // Trace
+
+        //TraceConfig tracer = { .file = stdout, .throttle = 8 };
+        //debug(&tracer, 5, SOURCE_LINE_STR, "Hello, world!");
+        //debug(&tracer, 10, SOURCE_LINE_STR, "This should not print.");
+
+        //TraceConfig logger = { 
+            //.file = fopen("trace_test.log", "w"),
+            //.throttle = 8 
+        //};
+
+        //print_log(&logger, 3, "Write this to log file");
+
+        //Status stat = { 
+            //.error = ErrorCode_Error,
+            //.debug_info = SOURCE_LINE_STR,
+            //.function = __func__,
+            //.message = "Write to log"
+        //};
+
+        //fclose(logger.file);
+    }
+
+    { // Maze Cells
         Maze_Cell cell_1 = { .row = 1, .column = 3 };
         test(cell_1.row == 1);
         test(cell_1.column == 3);
@@ -166,38 +434,21 @@ void RunTests(Test_Runner *runner)
         test(!grid.rows);
     }
 
-    { // Precondition assertion Tests
-        // Uncomment to test the real handler
-        //requires(false);
+}
 
-        Vitals_HandlerFP last_pre_handler = Vitals_SetHandler(Vitals_Category_Precondition, Vitals_MockHandler);
-        Vitals_HandlerFP last_post_handler = Vitals_SetHandler(Vitals_Category_Postcondition, Vitals_MockHandler);
-
-        test(last_pre_handler == Vitals_HandleFailure);
-        test(last_post_handler == Vitals_HandleFailure);
-
-        int x = 0;
-
-        TEST_VITALS_MOCK_STR[0] = '\0';
-        requires(x == 0); 
-        test(!strlen(TEST_VITALS_MOCK_STR));
-
-        // On the same line so LINE_STR picks up the correct line number.
-        requires(x == 1);  test(!strcmp(TEST_VITALS_MOCK_STR, "test.c:" LINE_STR ": ASSERT: Precondition \"x == 1\" failed in function RunTests()\n"));
-        ensures(x == 2);   test(!strcmp(TEST_VITALS_MOCK_STR, "test.c:" LINE_STR ": ASSERT: Postcondition \"x == 2\" failed in function RunTests()\n"));
-
-        Vitals_SetHandler(Vitals_Category_Precondition, last_pre_handler);
-        Vitals_SetHandler(Vitals_Category_Postcondition, last_post_handler);
-    }
+Test_Runner Test_MakeRunner()
+{
+    return (Test_Runner){ .failure_count = 0, .test_count = 0 };
 }
 
 int main(int argc, char *argv[])
 {
+    UNUSED(argc);
+    UNUSED(argv);
+
     printf("Testing...\n");
 
-    Test_Runner runner = { .base.type_info = &Test_Runner_TypeId, .failure_count = 0, .test_count = 0 };
-
-    Vitals_SetHandlerData(Vitals_Category_Test, Vitals_TestFailure, &runner);
+    Test_Runner runner = Test_MakeRunner(); 
 
     RunTests(&runner);
 

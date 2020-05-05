@@ -3,8 +3,12 @@
 
 # -MMD = generate dependency rules
 CC = clang
-CFLAGS = -g -D DEBUG -I/mingw64/include/SDL2  -MMD
- 
+CWARNFLAGS = -Wall -Wextra \
+						 -Werror=return-type \
+						 -Wno-missing-field-initializers \
+						 -Wno-missing-braces
+CFLAGS = -std=c11 -g -D DEBUG -I/mingw64/include/SDL2  -MMD $(CWARNFLAGS)
+
 # Linker 
 
 #LDFLAGS = -L/mingw64/lib -Wl,-subsystem,windows

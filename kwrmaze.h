@@ -12,7 +12,7 @@ typedef enum {
 
 typedef struct Maze_Cell {
     int row, column;
-    tuple_n(struct Maze_Cell, *links, *north, *east, *west, *south);
+    vector_n(struct Maze_Cell, *links, *north, *east, *west, *south);
 } Maze_Cell;
 
 typedef struct Maze_Grid {
