@@ -3,14 +3,15 @@
 
 # To Do
 
-- Isolate test cases
-- Test fixture setup & teardown
-- Test case auto-discovery script
-- Dynamic array
-- Strings
-- Linked list
-- Hash table/associative array
-- Auto release pool / memory tracker
+- Unit testing (isolate tests, fixture setup/teardown, auto-discovery, data alignment)
+- Assertions
+- Error detection & handling (error codes, handlers, "exceptions", runtime file:line debug info)
+- Tracing & Logging
+- Memory management (leak detection, memory pools, auto-release pools, convenience functions).
+- Data structures (string, dyn array, hash, list, span)
+- Threading
+- Signal handling
+
 
 # Coding Style
 
