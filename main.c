@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <SDL.h>
+#include <SDL2/SDL.h>
 
 #include "kwrlib.h"
 #include "kwrmaze.h"
